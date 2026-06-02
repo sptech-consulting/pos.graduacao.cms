@@ -1,20 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-
-async function getAuthEmail(userId: string, claims: unknown) {
-  const emailFromClaims = typeof (claims as { email?: unknown } | null)?.email === "string"
-    ? (claims as { email: string }).email
-    : "";
-  if (emailFromClaims) return emailFromClaims.toLowerCase().trim();
-
-  try {
-    const { data } = await supabaseAdmin.auth.admin.getUserById(userId);
-    return (data.user?.email ?? "").toLowerCase().trim();
-  } catch {
-    return "";
-  }
-}
+import { getAmbienteHomeApi } from "./ambiente-home.api";
 
 export type AmbienteHomeBranding = {
   id: string;
@@ -114,288 +99,105 @@ export type AmbienteHomeData = {
   cursos: CursoItem[];
 };
 
-
 export const getAmbienteHome = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((input: { slug: string }) => {
     if (!input?.slug || typeof input.slug !== "string" || input.slug.length > 120) {
       throw new Error("slug inválido");
     }
+
     return input;
   })
-  .handler(async ({ data, context }): Promise<AmbienteHomeData> => {
-    const { userId } = context;
-    if (!userId) throw new Error("Unauthorized");
-
-    // 1) Ambiente
-    const { data: amb, error: errAmb } = await supabaseAdmin
-      .from("ambientes")
-      .select("*")
-      .eq("slug", data.slug)
-      .eq("status", "ativo")
-      .maybeSingle();
-    if (errAmb) throw new Error(errAmb.message);
-    if (!amb) throw new Error("Ambiente não encontrado ou inativo");
-
-    // 2) Aluno + auto-link de auth_user_id caso ainda não vinculado
-    let { data: aluno, error: errAluno } = await supabaseAdmin
-      .from("alunos")
-      .select("id, nome_completo, email_acesso, status")
-      .eq("auth_user_id", userId)
-      .maybeSingle();
-    if (errAluno) throw new Error(errAluno.message);
-
-    if (!aluno) {
-      const email = await getAuthEmail(userId, context.claims);
-      if (email) {
-        const { data: porEmail } = await supabaseAdmin
-          .from("alunos")
-          .select("id, nome_completo, email_acesso, status, auth_user_id")
-          .ilike("email_acesso", email)
-          .maybeSingle();
-        if (porEmail && !porEmail.auth_user_id) {
-          await supabaseAdmin
-            .from("alunos")
-            .update({ auth_user_id: userId })
-            .eq("id", porEmail.id);
-          aluno = {
-            id: porEmail.id,
-            nome_completo: porEmail.nome_completo,
-            email_acesso: porEmail.email_acesso,
-            status: porEmail.status,
-          };
-        }
-      }
-    }
-
-    if (!aluno || aluno.status !== "ativo") {
-      throw new Error("Aluno não cadastrado ou inativo");
-    }
-
-    const { data: vinc } = await supabaseAdmin
-      .from("ambiente_alunos")
-      .select("id")
-      .eq("ambiente_id", amb.id)
-      .eq("aluno_id", aluno.id)
-      .eq("status", "ativo")
-      .limit(1)
-      .maybeSingle();
-    if (!vinc) throw new Error("Aluno sem acesso a este ambiente");
-
-    // 3) Ferramentas vinculadas ativas
-    const { data: ferrLinks } = await supabaseAdmin
-      .from("ambiente_ferramentas")
-      .select("ferramenta_id, ordem, destaque, status")
-      .eq("ambiente_id", amb.id)
-      .eq("status", "ativo");
-
-    const ferrIds = (ferrLinks ?? []).map((l) => l.ferramenta_id);
-    let ferramentas: FerramentaItem[] = [];
-    if (ferrIds.length) {
-      const { data: ferr } = await supabaseAdmin
-        .from("ferramentas")
-        .select("id, slug, nome, descricao, url, icone_url, categoria, tipo_abertura, status")
-        .in("id", ferrIds)
-        .eq("status", "ativo");
-      const byId = new Map((ferr ?? []).map((f) => [f.id, f]));
-      ferramentas = (ferrLinks ?? [])
-        .filter((l) => byId.has(l.ferramenta_id))
-        .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
-        .map((l) => {
-          const f = byId.get(l.ferramenta_id)!;
-          return {
-            id: f.id,
-            slug: (f as { slug: string | null }).slug ?? null,
-            nome: f.nome,
-            descricao: f.descricao,
-            url: f.url,
-            icone_url: f.icone_url,
-            categoria: f.categoria,
-            tipo_abertura: f.tipo_abertura,
-            destaque: !!l.destaque,
-          };
-        });
-    }
-
-    // 4) Novidades publicadas do ambiente (recebidas via webhook n8n)
-    const { data: novRows } = await supabaseAdmin
-      .from("novidades")
-      .select("id, slug, titulo, resumo, imagem_url, fonte_nome, fonte_url, categoria, publicado_em")
-      .eq("ambiente_id", amb.id)
-      .eq("status", "publicada")
-      .order("publicado_em", { ascending: false, nullsFirst: false })
-      .order("criado_em", { ascending: false });
-
-    const novidades: NovidadeItem[] = (novRows ?? []).map((n) => ({
-      id: n.id,
-      slug: (n as { slug: string | null }).slug ?? null,
-      titulo: n.titulo,
-      resumo: n.resumo,
-      imagem_url: n.imagem_url,
-      fonte_nome: n.fonte_nome,
-      fonte_url: n.fonte_url,
-      categoria: n.categoria,
-      publicado_em: n.publicado_em,
-      destaque: false,
-    }));
-
-    // 5) Aulas via cursos vinculados ao ambiente → módulos → aulas
-    const now = new Date().toISOString();
-    const { data: cursoLinks } = await supabaseAdmin
-      .from("ambiente_cursos")
-      .select("curso_id, ordem, liberado, data_liberacao, status")
-      .eq("ambiente_id", amb.id)
-      .eq("status", "ativo")
-      .eq("liberado", true);
-
-    const cursoIds = (cursoLinks ?? [])
-      .filter((l) => !l.data_liberacao || l.data_liberacao <= now)
-      .map((l) => l.curso_id);
-
-    let aulas: AulaItem[] = [];
-    let cursos: CursoItem[] = [];
-    if (cursoIds.length) {
-      const cursoOrdem = new Map((cursoLinks ?? []).map((l) => [l.curso_id, l.ordem ?? 0]));
-      const cursoDestaque = new Map((cursoLinks ?? []).map((l) => [l.curso_id, !!(l as { destaque?: boolean }).destaque]));
-
-      const { data: cursosRows } = await supabaseAdmin
-        .from("cursos")
-        .select("id, titulo, descricao, capa_url, categoria, nivel, status")
-        .in("id", cursoIds)
-        .eq("status", "publicada");
-
-      const { data: mods } = await supabaseAdmin
-        .from("modulos")
-        .select("id, titulo, ordem, curso_id, status")
-        .in("curso_id", cursoIds)
-        .eq("status", "ativo");
-
-      const modById = new Map((mods ?? []).map((m) => [m.id, m]));
-      const modIds = (mods ?? []).map((m) => m.id);
-
-      if (modIds.length) {
-        const { data: au } = await supabaseAdmin
-          .from("aulas")
-          .select("id, slug, titulo, descricao, modulo, modulo_id, ordem, video_url, material_url, thumbnail_url, duracao_minutos, tipo_conteudo, status")
-          .in("modulo_id", modIds)
-          .eq("status", "publicada");
-
-        aulas = (au ?? [])
-          .map((a) => {
-            const m = a.modulo_id ? modById.get(a.modulo_id) : null;
-            const cOrd = m ? (cursoOrdem.get(m.curso_id) ?? 0) : 0;
-            const mOrd = m?.ordem ?? 0;
-            return {
-              id: a.id,
-              slug: (a as { slug: string | null }).slug ?? null,
-              titulo: a.titulo,
-              descricao: a.descricao,
-              modulo: a.modulo ?? m?.titulo ?? null,
-              video_url: a.video_url,
-              material_url: a.material_url,
-              thumbnail_url: a.thumbnail_url,
-              duracao_minutos: a.duracao_minutos,
-              tipo_conteudo: a.tipo_conteudo,
-              modulo_ordem: cOrd * 1000 + mOrd,
-              ordem: a.ordem ?? 0,
-              _curso_id: m?.curso_id ?? null,
-            } as AulaItem & { _curso_id: string | null };
-          })
-          .sort((a, b) => a.modulo_ordem - b.modulo_ordem || a.ordem - b.ordem);
-
-        // Calcula total de aulas e primeira aula por curso
-        const aulasOrdenadasPorCurso = new Map<string, { id: string; slug: string | null; ordem: number; modulo_ordem: number }[]>();
-        for (const a of aulas as (AulaItem & { _curso_id?: string | null })[]) {
-          const cid = a._curso_id;
-          if (!cid) continue;
-          const list = aulasOrdenadasPorCurso.get(cid) ?? [];
-          list.push({ id: a.id, slug: a.slug, ordem: a.ordem, modulo_ordem: a.modulo_ordem });
-          aulasOrdenadasPorCurso.set(cid, list);
-        }
-
-        cursos = (cursosRows ?? [])
-          .map((c) => {
-            const list = aulasOrdenadasPorCurso.get(c.id) ?? [];
-            return {
-              id: c.id,
-              titulo: c.titulo,
-              descricao: c.descricao,
-              capa_url: c.capa_url,
-              categoria: c.categoria,
-              nivel: c.nivel,
-              total_aulas: list.length,
-              primeira_aula_id: list[0]?.id ?? null,
-              primeira_aula_slug: list[0]?.slug ?? null,
-              ordem: cursoOrdem.get(c.id) ?? 0,
-              destaque: cursoDestaque.get(c.id) ?? false,
-            };
-          })
-          .sort((a, b) => a.ordem - b.ordem);
-
-        // Limpa campo auxiliar
-        aulas = aulas.map((a) => {
-          const { _curso_id, ...rest } = a as AulaItem & { _curso_id?: string | null };
-          return rest;
-        });
-      } else {
-        cursos = (cursosRows ?? []).map((c) => ({
-          id: c.id,
-          titulo: c.titulo,
-          descricao: c.descricao,
-          capa_url: c.capa_url,
-          categoria: c.categoria,
-          nivel: c.nivel,
-          total_aulas: 0,
-          primeira_aula_id: null,
-          primeira_aula_slug: null,
-          ordem: cursoOrdem.get(c.id) ?? 0,
-          destaque: cursoDestaque.get(c.id) ?? false,
-        })).sort((a, b) => a.ordem - b.ordem);
-      }
-    }
-
-
-    const branding: AmbienteHomeBranding = {
-      id: amb.id,
-      nome: amb.nome,
-      slug: amb.slug,
-      descricao: amb.descricao,
-      logo_url: amb.logo_url,
-      imagem_capa_url: amb.imagem_capa_url,
-      cor_primaria: amb.cor_primaria ?? "#ED145B",
-      cor_secundaria: amb.cor_secundaria ?? "#1F2A44",
-      cor_fundo: amb.cor_fundo ?? "#FFFFFF",
-      cor_texto: amb.cor_texto ?? "#1F2A44",
-      cor_botao: amb.cor_botao ?? "#ED145B",
-      cor_card: amb.cor_card ?? "#FFFFFF",
-      cor_borda: amb.cor_borda ?? "#D0D3D4",
-      card_estilo: amb.card_estilo ?? "sombra",
-      card_borda: amb.card_borda ?? "arredondado",
-      card_tamanho: amb.card_tamanho ?? "medio",
-      card_sombra: amb.card_sombra ?? true,
-      card_exibir_icone: amb.card_exibir_icone ?? true,
-      card_exibir_imagem: amb.card_exibir_imagem ?? true,
-      efeito_card_tilt_3d: !!amb.efeito_card_tilt_3d,
-      efeito_card_glow: !!amb.efeito_card_glow,
-      efeito_card_scale: !!amb.efeito_card_scale,
-      efeito_botao_lift: !!amb.efeito_botao_lift,
-      efeito_entrada_animada: !!amb.efeito_entrada_animada,
-      efeito_som_hover: !!amb.efeito_som_hover,
-      efeito_som_volume: amb.efeito_som_volume ?? 40,
-      efeito_blobs_fundo: !!amb.efeito_blobs_fundo,
-      tema: (amb.tema ?? "claro") as "claro" | "escuro",
-      playbook_titulo: (amb as { playbook_titulo: string | null }).playbook_titulo ?? null,
-      playbook_descricao: (amb as { playbook_descricao: string | null }).playbook_descricao ?? null,
-      playbook_capa_url: (amb as { playbook_capa_url: string | null }).playbook_capa_url ?? null,
-      playbook_arquivo_url: (amb as { playbook_arquivo_url: string | null }).playbook_arquivo_url ?? null,
-    };
-
+  .handler(async ({ data }): Promise<AmbienteHomeData> => {
+    const payload = await getAmbienteHomeApi(data.slug);
     return {
-      branding,
-      aluno: { id: aluno.id, nome_completo: aluno.nome_completo, email_acesso: aluno.email_acesso },
-      ferramentas,
-      novidades,
-      aulas,
-      cursos,
+      branding: {
+        id: payload.branding.id,
+        nome: payload.branding.nome,
+        slug: payload.branding.slug,
+        descricao: payload.branding.descricao,
+        logo_url: payload.branding.logoUrl,
+        imagem_capa_url: payload.branding.imagemCapaUrl,
+        cor_primaria: payload.branding.corPrimaria,
+        cor_secundaria: payload.branding.corSecundaria,
+        cor_fundo: payload.branding.corFundo,
+        cor_texto: payload.branding.corTexto,
+        cor_botao: payload.branding.corBotao,
+        cor_card: payload.branding.corCard,
+        cor_borda: payload.branding.corBorda,
+        card_estilo: payload.branding.cardEstilo,
+        card_borda: payload.branding.cardBorda,
+        card_tamanho: payload.branding.cardTamanho,
+        card_sombra: payload.branding.cardSombra,
+        card_exibir_icone: payload.branding.cardExibirIcone,
+        card_exibir_imagem: payload.branding.cardExibirImagem,
+        efeito_card_tilt_3d: payload.branding.efeitoCardTilt3d,
+        efeito_card_glow: payload.branding.efeitoCardGlow,
+        efeito_card_scale: payload.branding.efeitoCardScale,
+        efeito_botao_lift: payload.branding.efeitoBotaoLift,
+        efeito_entrada_animada: payload.branding.efeitoEntradaAnimada,
+        efeito_som_hover: payload.branding.efeitoSomHover,
+        efeito_som_volume: payload.branding.efeitoSomVolume,
+        efeito_blobs_fundo: payload.branding.efeitoBlobsFundo,
+        tema: payload.branding.tema,
+        playbook_titulo: payload.branding.playbookTitulo,
+        playbook_descricao: payload.branding.playbookDescricao,
+        playbook_capa_url: payload.branding.playbookCapaUrl,
+        playbook_arquivo_url: payload.branding.playbookArquivoUrl,
+      },
+      aluno: {
+        id: payload.aluno.id,
+        nome_completo: payload.aluno.nomeCompleto,
+        email_acesso: payload.aluno.emailAcesso,
+      },
+      ferramentas: payload.ferramentas.map((item) => ({
+        id: item.id,
+        slug: item.slug,
+        nome: item.nome,
+        descricao: item.descricao,
+        url: item.url,
+        icone_url: item.iconeUrl,
+        categoria: item.categoria,
+        tipo_abertura: item.tipoAbertura,
+        destaque: item.destaque,
+      })),
+      novidades: payload.novidades.map((item) => ({
+        id: item.id,
+        slug: item.slug,
+        titulo: item.titulo,
+        resumo: item.resumo,
+        imagem_url: item.imagemUrl,
+        fonte_nome: item.fonteNome,
+        fonte_url: item.fonteUrl,
+        categoria: item.categoria,
+        publicado_em: item.publicadoEm,
+        destaque: item.destaque,
+      })),
+      aulas: payload.aulas.map((item) => ({
+        id: item.id,
+        slug: item.slug,
+        titulo: item.titulo,
+        descricao: item.descricao,
+        modulo: item.modulo,
+        video_url: item.videoUrl,
+        material_url: item.materialUrl,
+        thumbnail_url: item.thumbnailUrl,
+        duracao_minutos: item.duracaoMinutos,
+        tipo_conteudo: item.tipoConteudo,
+        modulo_ordem: item.moduloOrdem,
+        ordem: item.ordem,
+      })),
+      cursos: payload.cursos.map((item) => ({
+        id: item.id,
+        titulo: item.titulo,
+        descricao: item.descricao,
+        capa_url: item.capaUrl,
+        categoria: item.categoria,
+        nivel: item.nivel,
+        total_aulas: item.totalAulas,
+        primeira_aula_id: item.primeiraAulaId,
+        primeira_aula_slug: item.primeiraAulaSlug,
+        ordem: item.ordem,
+        destaque: item.destaque,
+      })),
     };
   });
