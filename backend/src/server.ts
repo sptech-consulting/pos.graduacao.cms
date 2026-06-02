@@ -6,15 +6,18 @@ import { registerJwt } from "./plugins/jwt.js";
 import { registerRateLimit } from "./plugins/rate-limit.js";
 import { registerSwagger } from "./plugins/swagger.js";
 import { authRoutes } from "./routes/auth/index.js";
+import { adminAmbientesRoutes } from "./routes/admin/ambientes.js";
+import { adminCursosRoutes } from "./routes/admin/cursos.js";
+import { adminAlunosRoutes } from "./routes/admin/alunos.js";
+import { adminTrabalhosRoutes } from "./routes/admin/trabalhos.js";
+import { adminFerramentasRoutes } from "./routes/admin/ferramentas.js";
 import { adminUsuariosRoutes } from "./routes/admin/usuarios.js";
 import { healthRoutes } from "./routes/health.js";
 
 const isProd = config.NODE_ENV === "production";
 
 const app = Fastify({
-  logger: isProd
-    ? true
-    : { transport: { target: "pino-pretty", options: { colorize: true } } },
+  logger: isProd ? true : { transport: { target: "pino-pretty", options: { colorize: true } } },
 });
 
 app.setErrorHandler((error: Error & { statusCode?: number }, _req, reply) => {
@@ -43,6 +46,11 @@ async function start(): Promise<void> {
   await app.register(healthRoutes);
   await app.register(authRoutes);
   await app.register(adminUsuariosRoutes);
+  await app.register(adminAmbientesRoutes);
+  await app.register(adminCursosRoutes);
+  await app.register(adminFerramentasRoutes);
+  await app.register(adminAlunosRoutes);
+  await app.register(adminTrabalhosRoutes);
 
   await app.listen({ port: config.BACKEND_PORT, host: "0.0.0.0" });
 }
