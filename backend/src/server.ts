@@ -5,6 +5,7 @@ import { registerCors } from "./plugins/cors.js";
 import { registerJwt } from "./plugins/jwt.js";
 import { registerRateLimit } from "./plugins/rate-limit.js";
 import { registerSwagger } from "./plugins/swagger.js";
+import { ambientePublicRoutes } from "./routes/ambientes.js";
 import { authRoutes } from "./routes/auth/index.js";
 import { adminAmbientesRoutes } from "./routes/admin/ambientes.js";
 import { adminCursosRoutes } from "./routes/admin/cursos.js";
@@ -48,6 +49,7 @@ async function start(): Promise<void> {
   await registerJwt(app);
 
   await app.register(healthRoutes);
+  await app.register(ambientePublicRoutes);
   await app.register(authRoutes);
   await app.register(adminUsuariosRoutes);
   await app.register(adminAmbientesRoutes);
@@ -55,7 +57,6 @@ async function start(): Promise<void> {
   await app.register(adminFerramentasRoutes);
   await app.register(adminAlunosRoutes);
   await app.register(adminTrabalhosRoutes);
-  await app.register(alunoAulaPlayerRoutes);
   await app.register(alunoFerramentasRoutes);
   await app.register(alunoAulaPlayerRoutes);
   await app.register(alunoHomeRoutes);
