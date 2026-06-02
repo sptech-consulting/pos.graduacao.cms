@@ -46,6 +46,7 @@ import {
   SlugConflictError,
   createAmbiente,
   deleteAmbiente,
+  getAmbienteBrandingBySlug,
   getAmbienteById,
   listAmbientes,
   updateAmbiente,
@@ -176,6 +177,37 @@ describe("ambientes.service", () => {
       selectQueue.push([]);
 
       const result = await getAmbienteById("nonexistent-id");
+
+      expect(result).toBeNull();
+    });
+  });
+
+  // ── getAmbienteBrandingBySlug ──────────────────────────────────────────────
+
+  describe("getAmbienteBrandingBySlug", () => {
+    it("returns branding payload when ambiente is ativo", async () => {
+      selectQueue.push([fakeAmbiente]);
+
+      const result = await getAmbienteBrandingBySlug("pos-tech");
+
+      expect(result).not.toBeNull();
+      expect(result?.slug).toBe("pos-tech");
+      expect((result as { inativo?: boolean }).inativo).toBeUndefined();
+    });
+
+    it("returns branding payload flagged as inativo for inactive ambiente", async () => {
+      selectQueue.push([{ ...fakeAmbiente, status: "inativo" }]);
+
+      const result = await getAmbienteBrandingBySlug("pos-tech");
+
+      expect(result).not.toBeNull();
+      expect((result as { inativo?: boolean })?.inativo).toBe(true);
+    });
+
+    it("returns null when slug is not found", async () => {
+      selectQueue.push([]);
+
+      const result = await getAmbienteBrandingBySlug("missing");
 
       expect(result).toBeNull();
     });
