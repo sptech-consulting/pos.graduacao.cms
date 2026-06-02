@@ -13,6 +13,7 @@ import { adminAlunosRoutes } from "./routes/admin/alunos.js";
 import { adminTrabalhosRoutes } from "./routes/admin/trabalhos.js";
 import { adminFerramentasRoutes } from "./routes/admin/ferramentas.js";
 import { adminUsuariosRoutes } from "./routes/admin/usuarios.js";
+import { adminComentariosRoutes } from "./routes/admin/comentarios.js";
 import { alunoAccountRoutes } from "./routes/aluno/account.js";
 import { alunoAulaPlayerRoutes } from "./routes/aluno/aula-player.js";
 import { alunoFerramentasRoutes } from "./routes/aluno/ferramentas.js";
@@ -56,12 +57,12 @@ async function start(): Promise<void> {
   await app.register(adminAmbientesRoutes);
   await app.register(adminCursosRoutes);
   await app.register(adminFerramentasRoutes);
+  await app.register(adminComentariosRoutes);
   await app.register(adminAlunosRoutes);
   await app.register(adminTrabalhosRoutes);
   await app.register(alunoAccountRoutes);
   await app.register(alunoFerramentasRoutes);
   await app.register(alunoAulaPlayerRoutes);
-  await app.register(alunoAccountRoutes);
   await app.register(alunoHomeRoutes);
   await app.register(alunoNovidadesRoutes);
 

@@ -26,16 +26,10 @@
 - Backend added aluno endpoints for player, progresso, conclusao e comentarios em `/aluno/ambientes/:slug/aulas/:aulaId/*`.
 - Wave 7 in progress: `ambiente.functions.ts` migrated to backend API wrapper (`ambiente.api.ts`).
 - Backend added public endpoint `GET /ambientes/:slug/branding` for login and branding flows without Supabase server-fn access.
-- Wave 4 in progress: `novidade.functions.ts` migrated to backend API wrapper (`novidade.api.ts`).
-- Backend added aluno endpoint `GET /aluno/ambientes/:slug/novidades/:novidadeId` with UUID validation + auth/scope checks.
-- Wave 5 in progress: `ferramenta.functions.ts` migrated to backend API wrapper (`ferramenta.api.ts`).
-- Backend added aluno endpoint `GET /aluno/ambientes/:slug/ferramentas/:ferramentaId` with UUID validation + auth/scope checks.
-- Wave 6 in progress: `aula-player.functions.ts` migrated to backend API wrapper (`aula-player.api.ts`).
-- Backend added aluno endpoints for player, progresso, conclusao e comentarios em `/aluno/ambientes/:slug/aulas/:aulaId/*`.
-- Wave 7 in progress: `ambiente.functions.ts` migrated to backend API wrapper (`ambiente.api.ts`).
-- Backend added public endpoint `GET /ambientes/:slug/branding` for login and branding flows without Supabase server-fn access.
 - Wave 8 in progress: `aluno.functions.ts` migrated to backend API wrapper (`aluno.api.ts`).
 - Backend added aluno account endpoints for `me`, `me/ambientes` and `ambientes/:slug/access`.
+- Wave 9 in progress: `admin-comentarios.functions.ts` migrated to backend API wrapper (`admin-comentarios.api.ts`).
+- Backend added admin endpoints para `/admin/comentarios`, `/admin/logs` e `/admin/metricas`.
 - Verification: backend tests, frontend tests, and frontend build passing.
 
 ## Completed Through
@@ -46,7 +40,7 @@
 
 1. Plan Task 7.2 with TDD + security checklist.
 2. Migrate next P1 file (`trabalhos.functions.ts`) to backend public endpoints.
-3. Migrate próximos `*.functions.ts` restantes em branches dedicadas.
+3. Migrate next P1/P2 files (`admin-alunos.functions.ts`, `aluno-convite.functions.ts`) para backend admin endpoints.
 4. Continue P2 files with tenant-scope regression tests.
 
 ## Risks Being Tracked
