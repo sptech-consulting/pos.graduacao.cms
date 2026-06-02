@@ -18,7 +18,23 @@
 - Public trabalho detail now returns funcionalidades + links + ambiente metadata via backend service.
 - Wave 3 in progress: `ambiente-home.functions.ts` migrated to backend API wrapper (`ambiente-home.api.ts`).
 - Backend added aluno endpoint `GET /aluno/ambientes/:slug/home` with aluno auth + ambiente scope middleware.
-- Wave 4 in progress: `aluno.functions.ts` migrated to backend API wrapper (`aluno.api.ts`).
+- Wave 4 in progress: `novidade.functions.ts` migrated to backend API wrapper (`novidade.api.ts`).
+- Backend added aluno endpoint `GET /aluno/ambientes/:slug/novidades/:novidadeId` with UUID validation + auth/scope checks.
+- Wave 5 in progress: `ferramenta.functions.ts` migrated to backend API wrapper (`ferramenta.api.ts`).
+- Backend added aluno endpoint `GET /aluno/ambientes/:slug/ferramentas/:ferramentaId` with UUID validation + auth/scope checks.
+- Wave 6 in progress: `aula-player.functions.ts` migrated to backend API wrapper (`aula-player.api.ts`).
+- Backend added aluno endpoints for player, progresso, conclusao e comentarios em `/aluno/ambientes/:slug/aulas/:aulaId/*`.
+- Wave 7 in progress: `ambiente.functions.ts` migrated to backend API wrapper (`ambiente.api.ts`).
+- Backend added public endpoint `GET /ambientes/:slug/branding` for login and branding flows without Supabase server-fn access.
+- Wave 4 in progress: `novidade.functions.ts` migrated to backend API wrapper (`novidade.api.ts`).
+- Backend added aluno endpoint `GET /aluno/ambientes/:slug/novidades/:novidadeId` with UUID validation + auth/scope checks.
+- Wave 5 in progress: `ferramenta.functions.ts` migrated to backend API wrapper (`ferramenta.api.ts`).
+- Backend added aluno endpoint `GET /aluno/ambientes/:slug/ferramentas/:ferramentaId` with UUID validation + auth/scope checks.
+- Wave 6 in progress: `aula-player.functions.ts` migrated to backend API wrapper (`aula-player.api.ts`).
+- Backend added aluno endpoints for player, progresso, conclusao e comentarios em `/aluno/ambientes/:slug/aulas/:aulaId/*`.
+- Wave 7 in progress: `ambiente.functions.ts` migrated to backend API wrapper (`ambiente.api.ts`).
+- Backend added public endpoint `GET /ambientes/:slug/branding` for login and branding flows without Supabase server-fn access.
+- Wave 8 in progress: `aluno.functions.ts` migrated to backend API wrapper (`aluno.api.ts`).
 - Backend added aluno account endpoints for `me`, `me/ambientes` and `ambientes/:slug/access`.
 - Verification: backend tests, frontend tests, and frontend build passing.
 
@@ -30,7 +46,7 @@
 
 1. Plan Task 7.2 with TDD + security checklist.
 2. Migrate next P1 file (`trabalhos.functions.ts`) to backend public endpoints.
-3. Migrate next P1/P2 files (`ferramenta.functions.ts`, `novidade.functions.ts`) to backend aluno endpoints.
+3. Migrate próximos `*.functions.ts` restantes em branches dedicadas.
 4. Continue P2 files with tenant-scope regression tests.
 
 ## Risks Being Tracked

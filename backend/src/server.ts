@@ -5,6 +5,7 @@ import { registerCors } from "./plugins/cors.js";
 import { registerJwt } from "./plugins/jwt.js";
 import { registerRateLimit } from "./plugins/rate-limit.js";
 import { registerSwagger } from "./plugins/swagger.js";
+import { ambientePublicRoutes } from "./routes/ambientes.js";
 import { authRoutes } from "./routes/auth/index.js";
 import { adminAmbientesRoutes } from "./routes/admin/ambientes.js";
 import { adminCursosRoutes } from "./routes/admin/cursos.js";
@@ -13,7 +14,10 @@ import { adminTrabalhosRoutes } from "./routes/admin/trabalhos.js";
 import { adminFerramentasRoutes } from "./routes/admin/ferramentas.js";
 import { adminUsuariosRoutes } from "./routes/admin/usuarios.js";
 import { alunoAccountRoutes } from "./routes/aluno/account.js";
+import { alunoAulaPlayerRoutes } from "./routes/aluno/aula-player.js";
+import { alunoFerramentasRoutes } from "./routes/aluno/ferramentas.js";
 import { alunoHomeRoutes } from "./routes/aluno/home.js";
+import { alunoNovidadesRoutes } from "./routes/aluno/novidades.js";
 import { healthRoutes } from "./routes/health.js";
 
 const isProd = config.NODE_ENV === "production";
@@ -46,6 +50,7 @@ async function start(): Promise<void> {
   await registerJwt(app);
 
   await app.register(healthRoutes);
+  await app.register(ambientePublicRoutes);
   await app.register(authRoutes);
   await app.register(adminUsuariosRoutes);
   await app.register(adminAmbientesRoutes);
@@ -54,7 +59,11 @@ async function start(): Promise<void> {
   await app.register(adminAlunosRoutes);
   await app.register(adminTrabalhosRoutes);
   await app.register(alunoAccountRoutes);
+  await app.register(alunoFerramentasRoutes);
+  await app.register(alunoAulaPlayerRoutes);
+  await app.register(alunoAccountRoutes);
   await app.register(alunoHomeRoutes);
+  await app.register(alunoNovidadesRoutes);
 
   await app.listen({ port: config.BACKEND_PORT, host: "0.0.0.0" });
 }
