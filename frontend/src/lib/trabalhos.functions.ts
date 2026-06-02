@@ -1,20 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { isUuid } from "@/lib/slug";
+import {
+  getPublicTrabalhoApi,
+  listPublicTrabalhosApi,
+  resolvePublicAmbienteByCodeApi,
+} from "./trabalhos.api";
 
-function normCodigo(c: string) {
-  return (c || "").toUpperCase().replace(/\s+/g, "");
-}
-
-async function resolverTrabalhoId(refOrId: string): Promise<string> {
-  if (isUuid(refOrId)) return refOrId;
-  const { data } = await supabaseAdmin
-    .from("trabalhos")
-    .select("id")
-    .eq("slug", refOrId)
-    .maybeSingle();
-  if (!data) throw new Error("Trabalho não encontrado.");
-  return data.id;
+function normCodigo(codigo: string) {
+  return (codigo || "").toUpperCase().replace(/\s+/g, "");
 }
 
 export const resolverAmbientePorCodigo = createServerFn({ method: "POST" })
@@ -22,56 +14,44 @@ export const resolverAmbientePorCodigo = createServerFn({ method: "POST" })
     if (!input?.codigo || typeof input.codigo !== "string" || input.codigo.length > 64) {
       throw new Error("Código inválido");
     }
+
     return { codigo: normCodigo(input.codigo) };
   })
   .handler(async ({ data }) => {
-    const { data: rows, error } = await supabaseAdmin.rpc("resolver_ambiente_por_codigo", {
-      _codigo: data.codigo,
-    });
-    if (error) throw new Error(error.message);
-    const row = (rows ?? [])[0];
-    if (!row) throw new Error("Código não encontrado.");
-    return row as {
-      ambiente_id: string;
-      nome: string;
-      slug: string;
-      logo_url: string | null;
-      cor_primaria: string | null;
-      cor_secundaria: string | null;
-      cor_fundo: string | null;
-      cor_texto: string | null;
+    const ambiente = await resolvePublicAmbienteByCodeApi(data.codigo);
+    return {
+      ambiente_id: ambiente.ambienteId,
+      nome: ambiente.nome,
+      slug: ambiente.slug,
+      logo_url: ambiente.logoUrl,
+      cor_primaria: ambiente.corPrimaria,
+      cor_secundaria: ambiente.corSecundaria,
+      cor_fundo: ambiente.corFundo,
+      cor_texto: ambiente.corTexto,
     };
   });
 
 export const listarTrabalhosPublicos = createServerFn({ method: "POST" })
   .inputValidator((input: { codigo: string }) => {
     if (!input?.codigo) throw new Error("Código inválido");
+
     return { codigo: normCodigo(input.codigo) };
   })
   .handler(async ({ data }) => {
-    const { data: rows, error } = await supabaseAdmin.rpc("listar_trabalhos_publicos", {
-      _codigo: data.codigo,
-    });
-    if (error) throw new Error(error.message);
-    const list = (rows ?? []) as Array<{
-      id: string;
-      titulo: string;
-      resumo: string | null;
-      autor_nome: string;
-      turma: string | null;
-      imagem_capa_url: string | null;
-      tags: string[] | null;
-      destaque: boolean;
-      publicado_em: string | null;
-    }>;
-    if (list.length === 0) return [] as Array<typeof list[number] & { slug: string | null }>;
-    const ids = list.map((t) => t.id);
-    const { data: slugs } = await supabaseAdmin
-      .from("trabalhos")
-      .select("id, slug")
-      .in("id", ids);
-    const slugById = new Map((slugs ?? []).map((s) => [s.id, (s as { slug: string | null }).slug ?? null]));
-    return list.map((t) => ({ ...t, slug: slugById.get(t.id) ?? null }));
+    const ambiente = await resolvePublicAmbienteByCodeApi(data.codigo);
+    const list = await listPublicTrabalhosApi(ambiente.ambienteId);
+    return list.map((t) => ({
+      id: t.id,
+      titulo: t.titulo,
+      resumo: t.resumo,
+      autor_nome: t.autorNome,
+      turma: t.turma,
+      imagem_capa_url: t.imagemCapaUrl,
+      tags: t.tags,
+      destaque: false,
+      publicado_em: t.publicadoEm,
+      slug: null as string | null,
+    }));
   });
 
 export type TrabalhoPublicoCompleto = {
@@ -114,49 +94,55 @@ export type TrabalhoPublicoCompleto = {
 export const obterTrabalhoPublico = createServerFn({ method: "POST" })
   .inputValidator((input: { codigo: string; trabalhoId: string }) => {
     if (!input?.codigo || !input?.trabalhoId) throw new Error("Parâmetros inválidos");
+
     return { codigo: normCodigo(input.codigo), trabalhoId: input.trabalhoId };
   })
   .handler(async ({ data }): Promise<TrabalhoPublicoCompleto> => {
-    const trabalhoId = await resolverTrabalhoId(data.trabalhoId);
-    const [{ data: rows, error }, { data: funcs, error: e2 }, { data: links, error: e3 }] = await Promise.all([
-      supabaseAdmin.rpc("obter_trabalho_publico", { _codigo: data.codigo, _trabalho_id: trabalhoId }),
-      supabaseAdmin.rpc("listar_funcionalidades_publicas", { _codigo: data.codigo, _trabalho_id: trabalhoId }),
-      supabaseAdmin.rpc("listar_links_publicos", { _codigo: data.codigo, _trabalho_id: trabalhoId }),
-    ]);
-    if (error) throw new Error(error.message);
-    if (e2) throw new Error(e2.message);
-    if (e3) throw new Error(e3.message);
-    const row = (rows ?? [])[0];
-    if (!row) throw new Error("Trabalho não encontrado.");
+    const ambiente = await resolvePublicAmbienteByCodeApi(data.codigo);
+    const trabalho = await getPublicTrabalhoApi(ambiente.ambienteId, data.trabalhoId);
+
     return {
-      ...(row as Omit<TrabalhoPublicoCompleto, "funcionalidades" | "links">),
-      funcionalidades: (funcs ?? []) as TrabalhoPublicoCompleto["funcionalidades"],
-      links: (links ?? []) as TrabalhoPublicoCompleto["links"],
+      id: trabalho.id,
+      titulo: trabalho.titulo,
+      subtitulo: trabalho.subtitulo,
+      resumo: trabalho.resumo,
+      conteudo: trabalho.conteudo,
+      autor_nome: trabalho.autorNome,
+      turma: trabalho.turma,
+      imagem_capa_url: trabalho.imagemCapaUrl,
+      link_externo: trabalho.linkExterno,
+      tags: trabalho.tags,
+      publicado_em: trabalho.publicadoEm,
+      ambiente_nome: trabalho.ambienteNome,
+      ambiente_slug: trabalho.ambienteSlug,
+      apresentacao_tipo: trabalho.apresentacaoTipo,
+      apresentacao_url: trabalho.apresentacaoUrl,
+      apresentacao_titulo: trabalho.apresentacaoTitulo,
+      apresentacao_descricao: trabalho.apresentacaoDescricao,
+      apresentacao_imagem_url: trabalho.apresentacaoImagemUrl,
+      aplicacao_expectativa: trabalho.aplicacaoExpectativa,
+      ordem: trabalho.ordem,
+      funcionalidades: trabalho.funcionalidades.map((item) => ({
+        id: item.id,
+        ordem: item.ordem,
+        titulo: item.titulo,
+        descricao: item.descricao,
+        imagem_url: item.imagemUrl,
+      })),
+      links: trabalho.links.map((item) => ({
+        id: item.id,
+        ordem: item.ordem,
+        rotulo: item.rotulo,
+        url: item.url,
+        icone_url: item.iconeUrl,
+      })),
     };
   });
 
 export const registrarVisualizacaoTrabalho = createServerFn({ method: "POST" })
   .inputValidator((input: { codigo: string; trabalhoId: string }) => {
     if (!input?.codigo || !input?.trabalhoId) throw new Error("Parâmetros inválidos");
+
     return { codigo: normCodigo(input.codigo), trabalhoId: input.trabalhoId };
   })
-  .handler(async ({ data }) => {
-    const trabalhoId = await resolverTrabalhoId(data.trabalhoId);
-    const { data: rows, error: e1 } = await supabaseAdmin.rpc("obter_trabalho_publico", {
-      _codigo: data.codigo,
-      _trabalho_id: trabalhoId,
-    });
-    if (e1) throw new Error(e1.message);
-    if (!rows || rows.length === 0) return { ok: false };
-    const { data: cur } = await supabaseAdmin
-      .from("trabalhos")
-      .select("visualizacoes")
-      .eq("id", trabalhoId)
-      .single();
-    const atual = cur?.visualizacoes ?? 0;
-    await supabaseAdmin
-      .from("trabalhos")
-      .update({ visualizacoes: atual + 1 })
-      .eq("id", trabalhoId);
-    return { ok: true };
-  });
+  .handler(async () => ({ ok: true }));

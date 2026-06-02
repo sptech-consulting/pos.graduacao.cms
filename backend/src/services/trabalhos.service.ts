@@ -1,6 +1,11 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "../db/connection.js";
-import { trabalhos } from "../db/schema/index.js";
+import {
+  ambientes,
+  trabalhoFuncionalidades,
+  trabalhoLinks,
+  trabalhos,
+} from "../db/schema/index.js";
 
 // ── Input types ───────────────────────────────────────────────────────────────
 
@@ -47,6 +52,26 @@ export class TrabalhoAmbienteMismatchError extends Error {
   }
 }
 
+export class AmbienteCodigoNotFoundError extends Error {
+  constructor(codigo: string) {
+    super(`Código não encontrado: ${codigo}`);
+    this.name = "AmbienteCodigoNotFoundError";
+  }
+}
+
+export type AmbientePublico = {
+  ambienteId: string;
+  nome: string;
+  slug: string;
+  logoUrl: string | null;
+  corPrimaria: string | null;
+  corSecundaria: string | null;
+  corFundo: string | null;
+  corTexto: string | null;
+};
+
+export type TrabalhoPublicoDetalhado = Awaited<ReturnType<typeof getTrabalhoPublico>>;
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function assertTrabalhoExists(trabalhoId: string) {
@@ -67,6 +92,10 @@ async function assertTrabalhoInAmbiente(ambienteId: string, trabalhoId: string) 
     .limit(1);
   if (!row) throw new TrabalhoNotFoundError(trabalhoId);
   return row;
+}
+
+function normalizeCodigo(codigo: string): string {
+  return codigo.toUpperCase().replace(/\s+/g, "");
 }
 
 // ── Admin queries ─────────────────────────────────────────────────────────────
@@ -141,5 +170,69 @@ export async function getTrabalhoPublico(ambienteId: string, trabalhoId: string)
     .set({ visualizacoes: sql`${trabalhos.visualizacoes} + 1` })
     .where(eq(trabalhos.id, trabalhoId));
 
-  return row;
+  const funcionalidades = await db
+    .select({
+      id: trabalhoFuncionalidades.id,
+      ordem: trabalhoFuncionalidades.ordem,
+      titulo: trabalhoFuncionalidades.titulo,
+      descricao: trabalhoFuncionalidades.descricao,
+      imagemUrl: trabalhoFuncionalidades.imagemUrl,
+    })
+    .from(trabalhoFuncionalidades)
+    .where(eq(trabalhoFuncionalidades.trabalhoId, trabalhoId))
+    .orderBy(trabalhoFuncionalidades.ordem, trabalhoFuncionalidades.criadoEm);
+
+  const links = await db
+    .select({
+      id: trabalhoLinks.id,
+      ordem: trabalhoLinks.ordem,
+      rotulo: trabalhoLinks.rotulo,
+      url: trabalhoLinks.url,
+      iconeUrl: trabalhoLinks.iconeUrl,
+    })
+    .from(trabalhoLinks)
+    .where(eq(trabalhoLinks.trabalhoId, trabalhoId))
+    .orderBy(trabalhoLinks.ordem, trabalhoLinks.criadoEm);
+
+  const [ambiente] = await db
+    .select({
+      nome: ambientes.nome,
+      slug: ambientes.slug,
+    })
+    .from(ambientes)
+    .where(eq(ambientes.id, ambienteId))
+    .limit(1);
+
+  return {
+    ...row,
+    ambienteNome: ambiente?.nome ?? "",
+    ambienteSlug: ambiente?.slug ?? "",
+    funcionalidades,
+    links,
+  };
+}
+
+export async function resolveAmbientePublicoPorCodigo(codigo: string): Promise<AmbientePublico> {
+  const codigoNormalizado = normalizeCodigo(codigo);
+
+  const [ambiente] = await db
+    .select({
+      ambienteId: ambientes.id,
+      nome: ambientes.nome,
+      slug: ambientes.slug,
+      logoUrl: ambientes.logoUrl,
+      corPrimaria: ambientes.corPrimaria,
+      corSecundaria: ambientes.corSecundaria,
+      corFundo: ambientes.corFundo,
+      corTexto: ambientes.corTexto,
+    })
+    .from(ambientes)
+    .where(eq(ambientes.codigoAcessoResultados, codigoNormalizado))
+    .limit(1);
+
+  if (!ambiente) {
+    throw new AmbienteCodigoNotFoundError(codigoNormalizado);
+  }
+
+  return ambiente;
 }

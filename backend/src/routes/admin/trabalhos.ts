@@ -5,6 +5,7 @@ import { requireAuth } from "../../middleware/require-auth.js";
 import { requirePermission } from "../../middleware/require-permission.js";
 import { audit } from "../../services/audit.service.js";
 import {
+  AmbienteCodigoNotFoundError,
   TrabalhoNotFoundError,
   createTrabalho,
   deleteTrabalho,
@@ -12,6 +13,7 @@ import {
   getTrabalhoPublico,
   listTrabalhos,
   listTrabalhosPublicos,
+  resolveAmbientePublicoPorCodigo,
   updateTrabalho,
 } from "../../services/trabalhos.service.js";
 
@@ -42,6 +44,12 @@ const qAmbiente = {
   type: "object",
   properties: { ambienteId: { type: "string", pattern: "^[0-9a-f-]{36}$" } },
   required: ["ambienteId"],
+};
+
+const qCodigo = {
+  type: "object",
+  properties: { codigo: { type: "string", minLength: 1, maxLength: 64 } },
+  required: ["codigo"],
 };
 
 // ── Body schemas ──────────────────────────────────────────────────────────────
@@ -98,6 +106,9 @@ function notFound(reply: Reply, msg: string) {
 
 function handleTrabalhoError(reply: Reply, err: unknown): never {
   if (err instanceof TrabalhoNotFoundError) return notFound(reply, (err as Error).message) as never;
+  if (err instanceof AmbienteCodigoNotFoundError) {
+    return notFound(reply, (err as Error).message) as never;
+  }
   throw err;
 }
 
@@ -255,6 +266,26 @@ export async function adminTrabalhosRoutes(app: FastifyInstance): Promise<void> 
     async (req, reply) => {
       const { ambienteId } = req.query as { ambienteId: string };
       return reply.send(await listTrabalhosPublicos(ambienteId));
+    },
+  );
+
+  // GET /trabalhos/ambiente  (public showcase)
+  app.get(
+    "/trabalhos/ambiente",
+    {
+      schema: {
+        tags: tagPublic,
+        summary: "Resolve ambiente público por código do mural",
+        querystring: qCodigo,
+      },
+    },
+    async (req, reply) => {
+      const { codigo } = req.query as { codigo: string };
+      try {
+        return reply.send(await resolveAmbientePublicoPorCodigo(codigo));
+      } catch (err) {
+        return handleTrabalhoError(reply, err);
+      }
     },
   );
 

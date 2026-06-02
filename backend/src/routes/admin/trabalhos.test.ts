@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockFns = vi.hoisted(() => ({
   listTrabalhos: vi.fn(),
   listTrabalhosPublicos: vi.fn(),
+  resolveAmbientePublicoPorCodigo: vi.fn(),
   createTrabalho: vi.fn(),
   getTrabalhoById: vi.fn(),
   getTrabalhoPublico: vi.fn(),
@@ -28,7 +29,13 @@ const errors = vi.hoisted(() => {
       this.name = "TrabalhoAmbienteMismatchError";
     }
   }
-  return { TrabalhoNotFoundError, TrabalhoAmbienteMismatchError };
+  class AmbienteCodigoNotFoundError extends Error {
+    constructor(codigo: string) {
+      super(`Código não encontrado: ${codigo}`);
+      this.name = "AmbienteCodigoNotFoundError";
+    }
+  }
+  return { TrabalhoNotFoundError, TrabalhoAmbienteMismatchError, AmbienteCodigoNotFoundError };
 });
 
 vi.mock("../../services/trabalhos.service.js", () => ({ ...mockFns, ...errors }));
@@ -408,6 +415,54 @@ describe("GET /trabalhos", () => {
       url: "/trabalhos?ambienteId=not-uuid",
     });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+// ── GET /trabalhos/ambiente (rota pública) ───────────────────────────────────
+
+describe("GET /trabalhos/ambiente", () => {
+  let app: Awaited<ReturnType<typeof buildApp>>;
+  beforeEach(async () => {
+    reset();
+    app = await buildApp();
+  });
+
+  it("returns ambiente by codigo without auth", async () => {
+    mockFns.resolveAmbientePublicoPorCodigo.mockResolvedValue({
+      ambienteId: AMB,
+      nome: "Ambiente Teste",
+      slug: "ambiente-teste",
+      logoUrl: null,
+      corPrimaria: "#ED145B",
+      corSecundaria: "#1F2A44",
+      corFundo: "#FFFFFF",
+      corTexto: "#1F2A44",
+    });
+    const res = await app.inject({
+      method: "GET",
+      url: "/trabalhos/ambiente?codigo=SPT2026",
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().ambienteId).toBe(AMB);
+  });
+
+  it("returns 400 when codigo query param is missing", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/trabalhos/ambiente",
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("returns 404 when codigo is not found", async () => {
+    mockFns.resolveAmbientePublicoPorCodigo.mockRejectedValue(
+      new errors.AmbienteCodigoNotFoundError("SPT2026"),
+    );
+    const res = await app.inject({
+      method: "GET",
+      url: "/trabalhos/ambiente?codigo=SPT2026",
+    });
+    expect(res.statusCode).toBe(404);
   });
 });
 
