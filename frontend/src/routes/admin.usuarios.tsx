@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, KeyRound, Copy, ShieldCheck, ShieldOff, Pencil } from "lucide-react";
+import { Plus, KeyRound, ShieldCheck, ShieldOff, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   inviteAdminUser,
@@ -58,7 +58,6 @@ function UsuariosPage() {
   const [loading, setLoading] = useState(true);
   const [openNew, setOpenNew] = useState(false);
   const [editing, setEditing] = useState<Admin | null>(null);
-  const [resetLink, setResetLink] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -95,8 +94,8 @@ function UsuariosPage() {
 
   async function handleReset(a: Admin) {
     try {
-      const { reset_link } = await sendReset({ data: { email: a.email } });
-      setResetLink(reset_link);
+      await sendReset({ data: { usuario_admin_id: a.id } });
+      toast.success("E-mail de redefinicao enviado.");
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -207,9 +206,8 @@ function UsuariosPage() {
           grupos={grupos}
           ambientes={ambientes}
           onClose={() => setOpenNew(false)}
-          onCreated={(link) => {
+          onCreated={() => {
             setOpenNew(false);
-            setResetLink(link);
             void load();
           }}
           invite={invite as any}
@@ -229,34 +227,6 @@ function UsuariosPage() {
           updateGroups={updateGroups as any}
         />
       )}
-
-      {resetLink && (
-        <Dialog open onOpenChange={() => setResetLink(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Link de definição de senha</DialogTitle>
-            </DialogHeader>
-            <p className="text-sm text-muted-foreground">
-              Envie este link ao usuário. Ele expira em poucas horas.
-            </p>
-            <div className="rounded-md border border-border bg-muted/40 p-2 text-xs break-all">
-              {resetLink}
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  navigator.clipboard.writeText(resetLink);
-                  toast.success("Link copiado.");
-                }}
-              >
-                <Copy className="h-4 w-4" /> Copiar
-              </Button>
-              <Button onClick={() => setResetLink(null)}>Fechar</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }
@@ -270,9 +240,9 @@ function NewAdminDialog({
 }: {
   grupos: Grupo[];
   ambientes: Ambiente[];
-  invite: (args: { data: any }) => Promise<{ reset_link: string | null; senha_definida?: boolean }>;
+  invite: (args: { data: any }) => Promise<{ id: string }>;
   onClose: () => void;
-  onCreated: (resetLink: string | null) => void;
+  onCreated: () => void;
 }) {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
@@ -307,14 +277,9 @@ function NewAdminDialog({
     try {
       const payload: any = { nome, email, grupos: selected };
       if (usarSenha) payload.senha_temporaria = senha;
-      const { reset_link, senha_definida } = await invite({ data: payload });
-      if (senha_definida) {
-        toast.success("Administrador criado com senha temporária.");
-        onCreated(null);
-      } else {
-        toast.success("Administrador criado.");
-        onCreated(reset_link);
-      }
+      await invite({ data: payload });
+      toast.success("Administrador criado.");
+      onCreated();
     } catch (e: any) {
       toast.error(e.message);
     } finally {
