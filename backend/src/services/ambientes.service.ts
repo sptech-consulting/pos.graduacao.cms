@@ -92,6 +92,41 @@ export async function getAmbienteById(id: string) {
   return ambiente ?? null;
 }
 
+export async function getAmbienteBrandingBySlug(slug: string) {
+  const [ambiente] = await db
+    .select({
+      id: ambientes.id,
+      nome: ambientes.nome,
+      slug: ambientes.slug,
+      status: ambientes.status,
+      tema: ambientes.tema,
+      logoUrl: ambientes.logoUrl,
+      imagemLoginUrl: ambientes.imagemLoginUrl,
+      corPrimaria: ambientes.corPrimaria,
+      corSecundaria: ambientes.corSecundaria,
+      corFundo: ambientes.corFundo,
+      corTexto: ambientes.corTexto,
+      corBotao: ambientes.corBotao,
+      corCard: ambientes.corCard,
+      corBorda: ambientes.corBorda,
+      efeitoCardTilt3d: ambientes.efeitoCardTilt3d,
+      efeitoCardGlow: ambientes.efeitoCardGlow,
+      efeitoCardScale: ambientes.efeitoCardScale,
+      efeitoBotaoLift: ambientes.efeitoBotaoLift,
+      efeitoEntradaAnimada: ambientes.efeitoEntradaAnimada,
+      efeitoSomHover: ambientes.efeitoSomHover,
+      efeitoSomVolume: ambientes.efeitoSomVolume,
+      efeitoBlobsFundo: ambientes.efeitoBlobsFundo,
+    })
+    .from(ambientes)
+    .where(eq(ambientes.slug, slug))
+    .limit(1);
+
+  if (!ambiente) return null;
+
+  return ambiente.status === "ativo" ? ambiente : { ...ambiente, inativo: true as const };
+}
+
 export async function updateAmbiente(id: string, data: UpdateAmbienteInput) {
   const existing = await getAmbienteById(id);
   if (!existing) throw new AmbienteNotFoundError(id);
