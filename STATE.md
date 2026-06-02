@@ -18,6 +18,8 @@
 - Public trabalho detail now returns funcionalidades + links + ambiente metadata via backend service.
 - Wave 3 in progress: `ambiente-home.functions.ts` migrated to backend API wrapper (`ambiente-home.api.ts`).
 - Backend added aluno endpoint `GET /aluno/ambientes/:slug/home` with aluno auth + ambiente scope middleware.
+- Wave 4 in progress: `aula-player.functions.ts` migrated to backend API wrapper (`aula-player.api.ts`).
+- Backend added aluno endpoints for player, progresso, conclusao e comentarios em `/aluno/ambientes/:slug/aulas/:aulaId/*`.
 - Verification: backend tests, frontend tests, and frontend build passing.
 
 ## Completed Through
