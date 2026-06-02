@@ -12,6 +12,7 @@ import { adminAlunosRoutes } from "./routes/admin/alunos.js";
 import { adminTrabalhosRoutes } from "./routes/admin/trabalhos.js";
 import { adminFerramentasRoutes } from "./routes/admin/ferramentas.js";
 import { adminUsuariosRoutes } from "./routes/admin/usuarios.js";
+import { alunoFerramentasRoutes } from "./routes/aluno/ferramentas.js";
 import { alunoHomeRoutes } from "./routes/aluno/home.js";
 import { alunoNovidadesRoutes } from "./routes/aluno/novidades.js";
 import { healthRoutes } from "./routes/health.js";
@@ -53,6 +54,7 @@ async function start(): Promise<void> {
   await app.register(adminFerramentasRoutes);
   await app.register(adminAlunosRoutes);
   await app.register(adminTrabalhosRoutes);
+  await app.register(alunoFerramentasRoutes);
   await app.register(alunoHomeRoutes);
   await app.register(alunoNovidadesRoutes);
 
