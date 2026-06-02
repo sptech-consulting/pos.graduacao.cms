@@ -17,7 +17,7 @@ CMS de pós-graduação para a SPTech. Multi-tenant learning platform with envir
 - **TDD is mandatory**: write tests before implementation. No PR without passing tests.
 - One atomic commit per task. Conventional commits format.
 - Branch from `refactor/loveable-migration` for every task. Open PR when done.
-- Update `PLAN.md` after each merged PR.
+- Update `ROADMAP.md` and `STATE.md` after each merged PR.
 - Security risks and pen-test checklist are surfaced at planning time — not after implementation.
 
 ## TDD — Test-Driven Development
@@ -77,6 +77,15 @@ pnpm test:coverage   # with coverage report
 - Docstrings on public functions: intent + one usage example.
 - Reference issue numbers / commit SHAs when a line exists because
   of a specific bug or upstream constraint.
+
+## Tests
+
+- Tests run with a single command: `<project-specific>`.
+- Every new function gets a test. Bug fixes get a regression test.
+- Mock external I/O (API, DB, filesystem) with named fake classes,
+  not inline stubs.
+- Tests must be F.I.R.S.T: fast, independent, repeatable,
+  self-validating, timely.
 
 ## Dependencies
 

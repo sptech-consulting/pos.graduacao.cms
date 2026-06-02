@@ -48,6 +48,15 @@ No PR is accepted without passing tests covering:
 - Reference issue numbers / commit SHAs when a line exists because
   of a specific bug or upstream constraint.
 
+## Tests
+
+- Tests run with a single command: `<project-specific>`.
+- Every new function gets a test. Bug fixes get a regression test.
+- Mock external I/O (API, DB, filesystem) with named fake classes,
+  not inline stubs.
+- Tests must be F.I.R.S.T: fast, independent, repeatable,
+  self-validating, timely.
+
 ## Dependencies
 
 - Inject dependencies through constructor/parameter, not global/import.
