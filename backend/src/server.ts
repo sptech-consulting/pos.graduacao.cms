@@ -13,7 +13,9 @@ import { adminTrabalhosRoutes } from "./routes/admin/trabalhos.js";
 import { adminFerramentasRoutes } from "./routes/admin/ferramentas.js";
 import { adminUsuariosRoutes } from "./routes/admin/usuarios.js";
 import { alunoAulaPlayerRoutes } from "./routes/aluno/aula-player.js";
+import { alunoFerramentasRoutes } from "./routes/aluno/ferramentas.js";
 import { alunoHomeRoutes } from "./routes/aluno/home.js";
+import { alunoNovidadesRoutes } from "./routes/aluno/novidades.js";
 import { healthRoutes } from "./routes/health.js";
 
 const isProd = config.NODE_ENV === "production";
@@ -54,7 +56,10 @@ async function start(): Promise<void> {
   await app.register(adminAlunosRoutes);
   await app.register(adminTrabalhosRoutes);
   await app.register(alunoAulaPlayerRoutes);
+  await app.register(alunoFerramentasRoutes);
+  await app.register(alunoAulaPlayerRoutes);
   await app.register(alunoHomeRoutes);
+  await app.register(alunoNovidadesRoutes);
 
   await app.listen({ port: config.BACKEND_PORT, host: "0.0.0.0" });
 }
