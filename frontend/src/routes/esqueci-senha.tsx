@@ -1,28 +1,36 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { SptechLogo } from "@/components/SptechLogo";
+import { requestApiPasswordReset, type AuthRole } from "@/lib/backend-auth";
 
 export const Route = createFileRoute("/esqueci-senha")({
+  validateSearch: (search: Record<string, unknown>) => {
+    const role = search.role === "aluno" ? "aluno" : "admin";
+    return { role };
+  },
   head: () => ({ meta: [{ title: "Recuperar senha — SPTech" }] }),
   component: ForgotPassword,
 });
 
 function ForgotPassword() {
+  const { role } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const roleLabel = role === "aluno" ? "aluno" : "administrador";
+
+  async function handlePasswordReset(emailValue: string, roleValue: AuthRole) {
+    await requestApiPasswordReset(emailValue, roleValue);
+  }
 
   async function handle(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/redefinir-senha`,
-      });
-      if (error) throw error;
+      await handlePasswordReset(email, role);
       setSent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao enviar e-mail");
@@ -38,7 +46,7 @@ function ForgotPassword() {
         <div className="rounded-xl border border-border bg-card p-8 shadow-sm">
           <h1 className="text-2xl font-black text-secondary">Recuperar senha</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Informe seu e-mail. Enviaremos um link para você criar uma nova senha.
+            Informe o e-mail do {roleLabel}. Enviaremos um link para você criar uma nova senha.
           </p>
           {sent ? (
             <div className="mt-6 rounded-md bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800">

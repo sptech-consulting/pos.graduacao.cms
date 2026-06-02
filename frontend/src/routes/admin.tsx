@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, redirect, Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { getApiUser } from "@/lib/backend-auth";
 import { getAdminProfile, signOut, type AdminProfile } from "@/lib/auth";
 import { SptechLogo } from "@/components/SptechLogo";
 import { Toaster } from "@/components/ui/sonner";
@@ -27,19 +27,8 @@ import {
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
-    if (typeof window === "undefined") return;
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) throw redirect({ to: "/admin/entrar" });
-
-    // Sessão compartilhada pode pertencer a um aluno — só libera /admin se o
-    // auth_user_id estiver vinculado a um usuário admin ativo.
-    const { data: admin } = await supabase
-      .from("usuarios_admin")
-      .select("id")
-      .eq("auth_user_id", data.session.user.id)
-      .eq("status", "ativo")
-      .maybeSingle();
-    if (!admin) throw redirect({ to: "/admin/entrar" });
+    const user = await getApiUser();
+    if (!user || user.role !== "admin" || user.status !== "ativo") throw redirect({ to: "/admin/entrar" });
   },
   component: AdminShell,
 });

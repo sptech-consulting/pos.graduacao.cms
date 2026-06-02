@@ -6,7 +6,6 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
   return (
@@ -83,13 +82,14 @@ function RootComponent() {
 
   useEffect(() => {
     document.title = "SPTech";
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
-        router.invalidate();
-        queryClient.invalidateQueries();
-      }
-    });
-    return () => subscription.unsubscribe();
+
+    function onAuthChange() {
+      router.invalidate();
+      queryClient.invalidateQueries();
+    }
+
+    window.addEventListener("auth:changed", onAuthChange);
+    return () => window.removeEventListener("auth:changed", onAuthChange);
   }, [router, queryClient]);
 
   return (

@@ -1,16 +1,15 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
+import { getApiUser } from "@/lib/backend-auth";
 import { getNovidadeDetalhe, type NovidadeDetalhe } from "@/lib/novidade.functions";
 import { getAmbienteBranding } from "@/lib/ambiente.functions";
 import { ArrowLeft, ExternalLink, Calendar } from "lucide-react";
 
 export const Route = createFileRoute("/e/$slug/novidade/$novidadeId")({
   beforeLoad: async ({ params }) => {
-    if (typeof window === "undefined") return;
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) {
+    const user = await getApiUser();
+    if (!user || user.role !== "aluno" || user.status !== "ativo") {
       throw redirect({ to: "/e/$slug/entrar", params: { slug: params.slug } });
     }
   },

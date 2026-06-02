@@ -1,16 +1,15 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
+import { getApiUser, signOutWithApi } from "@/lib/backend-auth";
 import { getFerramentaDetalhe, type FerramentaDetalhe } from "@/lib/ferramenta.functions";
 import { getAmbienteBranding } from "@/lib/ambiente.functions";
 import { ArrowLeft, ExternalLink, Plus, Minus, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 
 export const Route = createFileRoute("/e/$slug/ferramenta/$ferramentaId")({
   beforeLoad: async ({ params }) => {
-    if (typeof window === "undefined") return;
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) {
+    const user = await getApiUser();
+    if (!user || user.role !== "aluno" || user.status !== "ativo") {
       throw redirect({ to: "/e/$slug/entrar", params: { slug: params.slug } });
     }
   },
@@ -40,7 +39,7 @@ function FerramentaPage() {
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Erro";
         if (/unauthorized|no authorization header|acesso negado|aluno não cadastrado|aluno nao cadastrado/i.test(msg)) {
-          await supabase.auth.signOut().catch(() => {});
+          await signOutWithApi();
           window.location.href = `/e/${slug}/entrar`;
           return;
         }

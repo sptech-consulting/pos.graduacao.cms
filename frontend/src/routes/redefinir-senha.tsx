@@ -1,34 +1,28 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type FormEvent } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useMemo, useState, type FormEvent } from "react";
 import { SptechLogo } from "@/components/SptechLogo";
+import { resetApiPassword } from "@/lib/backend-auth";
 import { validarSenhaForte, forcaSenha } from "@/lib/password";
 
 export const Route = createFileRoute("/redefinir-senha")({
+  validateSearch: (search: Record<string, unknown>) => {
+    const token = typeof search.token === "string" ? search.token : "";
+    return { token };
+  },
   head: () => ({ meta: [{ title: "Nova senha — SPTech" }] }),
   component: ResetPassword,
 });
 
 function ResetPassword() {
+  const { token } = Route.useSearch();
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    // Supabase deposita a sessão de recuperação automaticamente via hash.
-    const sub = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") setReady(true);
-    });
-    // Em caso de já existir sessão pendente
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setReady(true);
-    });
-    return () => sub.data.subscription.unsubscribe();
-  }, []);
+  const ready = useMemo(() => token.length === 64, [token]);
 
   async function handle(e: FormEvent) {
     e.preventDefault();
@@ -44,10 +38,9 @@ function ResetPassword() {
     }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
+      await resetApiPassword(token, password);
       setSuccess(true);
-      setTimeout(() => navigate({ to: "/admin/entrar" }), 1500);
+      setTimeout(() => navigate({ to: "/admin/entrar" }), 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao atualizar senha");
     } finally {

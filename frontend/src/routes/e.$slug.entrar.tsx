@@ -1,8 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
-import { signIn, signUp, signOut } from "@/lib/auth";
+import { getApiUser, signInWithApi, signOutWithApi } from "@/lib/backend-auth";
 import { getAmbienteBranding } from "@/lib/ambiente.functions";
 import { ensureAlunoAuthLink, checkAlunoAmbienteAccess } from "@/lib/aluno.functions";
 
@@ -10,35 +9,10 @@ type Branding = Awaited<ReturnType<typeof getAmbienteBranding>>;
 
 export const Route = createFileRoute("/e/$slug/entrar")({
   beforeLoad: async ({ params }) => {
-    if (typeof window === "undefined") return;
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) return;
-
-    const { data: aluno } = await supabase
-      .from("alunos")
-      .select("id, status")
-      .eq("auth_user_id", data.session.user.id)
-      .eq("status", "ativo")
-      .maybeSingle();
-    if (!aluno) return;
-
-    const { data: ambiente } = await supabase
-      .from("ambientes")
-      .select("id")
-      .eq("slug", params.slug)
-      .eq("status", "ativo")
-      .maybeSingle();
-    if (!ambiente) return;
-
-    const { data: vinculo } = await supabase
-      .from("ambiente_alunos")
-      .select("id")
-      .eq("aluno_id", aluno.id)
-      .eq("ambiente_id", ambiente.id)
-      .eq("status", "ativo")
-      .maybeSingle();
-
-    if (vinculo) throw redirect({ to: "/e/$slug", params: { slug: params.slug } });
+    const user = await getApiUser();
+    if (user?.role === "aluno" && user.status === "ativo") {
+      throw redirect({ to: "/e/$slug", params: { slug: params.slug } });
+    }
   },
   component: AmbienteLogin,
 });
@@ -49,7 +23,6 @@ function AmbienteLogin() {
   const linkAluno = useServerFn(ensureAlunoAuthLink);
   const checkAccess = useServerFn(checkAlunoAmbienteAccess);
   const [b, setB] = useState<Branding | null>(null);
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -66,27 +39,19 @@ function AmbienteLogin() {
     setInfo(null);
     setLoading(true);
     try {
-      const { data: currentSession } = await supabase.auth.getSession();
-      if (currentSession.session) await signOut();
-
-      if (mode === "signup") {
-        await signUp(email, password);
-        await signIn(email, password);
-      } else {
-        await signIn(email, password);
-      }
+      await signInWithApi(email, password, "aluno");
 
       // Vincula auth.uid -> alunos.auth_user_id pelo email
       const aluno = await linkAluno();
       if (!aluno) {
-        await signOut();
+        await signOutWithApi();
         throw new Error("Seu e-mail não está cadastrado como aluno. Procure o administrador.");
       }
 
       // Confere acesso ao ambiente
       const res = await checkAccess({ data: { slug } });
       if (!res.ok) {
-        await signOut();
+        await signOutWithApi();
         const msg =
           res.reason === "no_aluno"
             ? "Seu e-mail não está cadastrado como aluno. Procure o administrador."
@@ -100,11 +65,9 @@ function AmbienteLogin() {
       window.location.assign(`/e/${slug}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erro ao autenticar";
-      if (mode === "signin" && message.toLowerCase().includes("invalid login credentials")) {
+      if (message.toLowerCase().includes("credenciais inválidas")) {
         setError("Ainda não existe uma senha válida para este e-mail ou a senha está incorreta.");
-        setInfo("Se for o primeiro acesso de tiago.souza+teste@dtcode.com.br, clique em “Primeiro acesso? Definir senha”.");
-      } else if (mode === "signup" && message.toLowerCase().includes("user already registered")) {
-        setError("Este e-mail já tem acesso criado. Volte para “Já tenho senha — entrar”.");
+        setInfo("Se for seu primeiro acesso, solicite ao administrador o reset de senha.");
       } else {
         setError(message);
       }
@@ -153,9 +116,7 @@ function AmbienteLogin() {
           style={{ backgroundColor: corCard, border: `1px solid ${corBorda}` }}
         >
           <h1 className="text-2xl font-black">{b?.nome ?? "Acesso"}</h1>
-          <p className="mt-1 text-sm opacity-70">
-            {mode === "signin" ? "Use seu e-mail e senha." : "Defina sua senha de primeiro acesso."}
-          </p>
+          <p className="mt-1 text-sm opacity-70">Use seu e-mail e senha.</p>
           <form onSubmit={handle} className="mt-6 space-y-4">
             <div>
               <label className="text-xs font-semibold">E-mail</label>
@@ -196,21 +157,11 @@ function AmbienteLogin() {
               className="w-full rounded-md px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
               style={{ backgroundColor: corBotao }}
             >
-              {loading ? "Aguarde..." : mode === "signin" ? "Entrar" : "Criar acesso"}
+              {loading ? "Aguarde..." : "Entrar"}
             </button>
           </form>
-          <div className="mt-4 flex items-center justify-between gap-3 text-xs opacity-80">
-            <button
-              onClick={() => {
-                setMode(mode === "signin" ? "signup" : "signin");
-                setError(null);
-                setInfo(null);
-              }}
-              className="hover:opacity-100"
-            >
-              {mode === "signin" ? "Primeiro acesso? Definir senha" : "Já tenho senha — entrar"}
-            </button>
-            <a href="/esqueci-senha" className="hover:opacity-100" style={{ color: corPrim }}>
+          <div className="mt-4 flex items-center justify-end gap-3 text-xs opacity-80">
+            <a href="/esqueci-senha?role=aluno" className="hover:opacity-100" style={{ color: corPrim }}>
               Esqueci minha senha
             </a>
           </div>

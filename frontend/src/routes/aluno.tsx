@@ -1,14 +1,11 @@
 import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
+import { getApiUser } from "@/lib/backend-auth";
 import { signOut } from "@/lib/auth";
 
 export const Route = createFileRoute("/aluno")({
   beforeLoad: async () => {
-    if (typeof window === "undefined") return;
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) throw redirect({ to: "/aluno/entrar" });
-    // Vínculo aluno x auth_user_id é resolvido na própria página (server fn),
-    // para suportar primeiro acesso quando o vínculo ainda é apenas por e-mail.
+    const user = await getApiUser();
+    if (!user || user.role !== "aluno" || user.status !== "ativo") throw redirect({ to: "/aluno/entrar" });
   },
   component: AlunoShell,
 });

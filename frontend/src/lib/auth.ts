@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getApiUser, signInWithApi, signOutWithApi, type BackendAuthUser } from "./backend-auth";
 
 export type AdminProfile = {
   id: string;
@@ -7,43 +7,34 @@ export type AdminProfile = {
 };
 
 export async function signIn(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw error;
-  return data;
+  await signInWithApi(email, password, "admin");
+  return { session: true };
 }
 
-export async function signUp(email: string, password: string) {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { emailRedirectTo: `${window.location.origin}/` },
-  });
-  if (error) throw error;
-  return data;
+export async function signUp(email: string, _password: string) {
+  throw new Error(`Cadastro direto desabilitado para ${email}. Solicite convite de administrador.`);
 }
 
 export async function signOut() {
-  await supabase.auth.signOut();
+  await signOutWithApi();
 }
 
 export async function getAdminProfile(): Promise<AdminProfile | null> {
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) return null;
-  const { data } = await supabase
-    .from("usuarios_admin")
-    .select("id, nome, email")
-    .eq("auth_user_id", u.user.id)
-    .maybeSingle();
-  return data ?? null;
+  const user = await getApiUser();
+  if (!isAdmin(user)) return null;
+  return { id: user.id, nome: user.nome, email: user.email };
 }
 
 export async function getAlunoProfile() {
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) return null;
-  const { data } = await supabase
-    .from("alunos")
-    .select("id, nome_completo, email_acesso")
-    .eq("auth_user_id", u.user.id)
-    .maybeSingle();
-  return data ?? null;
+  const user = await getApiUser();
+  if (!isAluno(user)) return null;
+  return { id: user.id, nome_completo: user.nomeCompleto, email_acesso: user.emailAcesso };
+}
+
+function isAdmin(user: BackendAuthUser | null): user is Extract<BackendAuthUser, { role: "admin" }> {
+  return !!user && user.role === "admin";
+}
+
+function isAluno(user: BackendAuthUser | null): user is Extract<BackendAuthUser, { role: "aluno" }> {
+  return !!user && user.role === "aluno";
 }

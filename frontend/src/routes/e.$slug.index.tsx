@@ -1,7 +1,7 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
+import { getApiUser, signOutWithApi } from "@/lib/backend-auth";
 import { signOut } from "@/lib/auth";
 import { getAmbienteHome, type AmbienteHomeData, type FerramentaItem } from "@/lib/ambiente-home.functions";
 import { EffectCard } from "@/components/EffectCard";
@@ -27,9 +27,10 @@ import {
 
 export const Route = createFileRoute("/e/$slug/")({
   beforeLoad: async ({ params }) => {
-    if (typeof window === "undefined") return;
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) throw redirect({ to: "/e/$slug/entrar", params: { slug: params.slug } });
+    const user = await getApiUser();
+    if (!user || user.role !== "aluno" || user.status !== "ativo") {
+      throw redirect({ to: "/e/$slug/entrar", params: { slug: params.slug } });
+    }
   },
   component: AmbienteHome,
 });
@@ -66,7 +67,7 @@ function AmbienteHome() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Erro ao carregar ambiente";
         if (/unauthorized|no authorization header|acesso negado|aluno não cadastrado|aluno nao cadastrado/i.test(msg)) {
-          await supabase.auth.signOut().catch(() => {});
+          await signOutWithApi();
           navigate({ to: "/e/$slug/entrar", params: { slug }, replace: true });
           return;
         }
