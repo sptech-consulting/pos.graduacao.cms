@@ -1,7 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { isUuid } from "@/lib/slug";
+import { getFerramentaDetalheApi } from "./ferramenta.api";
 
 export type FerramentaTagTipo = "input" | "output" | "integracao";
 
@@ -27,7 +25,6 @@ export type FerramentaDetalhe = {
 };
 
 export const getFerramentaDetalhe = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((input: { slug: string; ferramentaId: string }) => {
     if (!input?.slug || typeof input.slug !== "string" || input.slug.length > 120) {
       throw new Error("slug inválido");
@@ -35,91 +32,44 @@ export const getFerramentaDetalhe = createServerFn({ method: "POST" })
     if (!input?.ferramentaId || typeof input.ferramentaId !== "string") {
       throw new Error("id inválido");
     }
+    if (!/^[0-9a-f-]{36}$/.test(input.ferramentaId)) {
+      throw new Error("id inválido");
+    }
+
     return input;
   })
-  .handler(async ({ data, context }): Promise<FerramentaDetalhe> => {
-    const { userId } = context;
-
-    const { data: amb } = await supabaseAdmin
-      .from("ambientes")
-      .select("id, nome, slug, status")
-      .eq("slug", data.slug)
-      .maybeSingle();
-    if (!amb || amb.status !== "ativo") throw new Error("Ambiente não encontrado");
-
-    const { data: aluno } = await supabaseAdmin
-      .from("alunos")
-      .select("id, status")
-      .eq("auth_user_id", userId)
-      .maybeSingle();
-    if (!aluno || aluno.status !== "ativo") throw new Error("Acesso negado");
-
-    const { data: vincAluno } = await supabaseAdmin
-      .from("ambiente_alunos")
-      .select("id")
-      .eq("ambiente_id", amb.id)
-      .eq("aluno_id", aluno.id)
-      .eq("status", "ativo")
-      .maybeSingle();
-    if (!vincAluno) throw new Error("Acesso negado");
-
-    // Resolve por UUID ou slug
-    const ferrQuery = supabaseAdmin
-      .from("ferramentas")
-      .select(
-        "id, nome, descricao, subtitulo, descricao_longa, url, icone_url, imagem_capa_url, categoria, tipo_abertura, frase_destaque, status, slug",
-      );
-    const { data: f } = isUuid(data.ferramentaId)
-      ? await ferrQuery.eq("id", data.ferramentaId).maybeSingle()
-      : await ferrQuery.eq("slug", data.ferramentaId).maybeSingle();
-    if (!f || f.status !== "ativo") throw new Error("Ferramenta indisponível");
-
-    const { data: vincFerr } = await supabaseAdmin
-      .from("ambiente_ferramentas")
-      .select("id, status")
-      .eq("ambiente_id", amb.id)
-      .eq("ferramenta_id", f.id)
-      .eq("status", "ativo")
-      .maybeSingle();
-    if (!vincFerr) throw new Error("Ferramenta não disponível neste ambiente");
-
-    const [casosUsoRes, tagsRes, blocosRes, funcsRes, casosTesteRes] = await Promise.all([
-      supabaseAdmin.from("ferramenta_casos_uso").select("id, texto, ordem").eq("ferramenta_id", f.id).order("ordem"),
-      supabaseAdmin.from("ferramenta_tags").select("id, tipo, rotulo, ordem").eq("ferramenta_id", f.id).order("ordem"),
-      supabaseAdmin.from("ferramenta_blocos").select("id, titulo, conteudo, ordem").eq("ferramenta_id", f.id).order("ordem"),
-      supabaseAdmin.from("ferramenta_funcionalidades").select("id, titulo, descricao, imagem_url, ordem").eq("ferramenta_id", f.id).order("ordem"),
-      supabaseAdmin.from("ferramenta_casos_teste").select("id, titulo, badge, prompt_exemplo, explicacao, ordem").eq("ferramenta_id", f.id).order("ordem"),
-    ]);
+  .handler(async ({ data }): Promise<FerramentaDetalhe> => {
+    const f = await getFerramentaDetalheApi(data.slug, data.ferramentaId);
 
     return {
       id: f.id,
       nome: f.nome,
       descricao: f.descricao,
       subtitulo: f.subtitulo,
-      descricao_longa: f.descricao_longa,
+      descricao_longa: f.descricaoLonga,
       url: f.url,
-      icone_url: f.icone_url,
-      imagem_capa_url: f.imagem_capa_url,
+      icone_url: f.iconeUrl,
+      imagem_capa_url: f.imagemCapaUrl,
       categoria: f.categoria,
-      tipo_abertura: f.tipo_abertura,
-      frase_destaque: f.frase_destaque,
-      casos_uso: (casosUsoRes.data ?? []).map((r) => ({ id: r.id, texto: r.texto })),
-      tags: (tagsRes.data ?? []).map((r) => ({ id: r.id, tipo: r.tipo as FerramentaTagTipo, rotulo: r.rotulo })),
-      blocos: (blocosRes.data ?? []).map((r) => ({ id: r.id, titulo: r.titulo, conteudo: r.conteudo })),
-      funcionalidades: (funcsRes.data ?? []).map((r) => ({
+      tipo_abertura: f.tipoAbertura,
+      frase_destaque: f.fraseDestaque,
+      casos_uso: f.casosUso.map((r) => ({ id: r.id, texto: r.texto })),
+      tags: f.tags.map((r) => ({ id: r.id, tipo: r.tipo as FerramentaTagTipo, rotulo: r.rotulo })),
+      blocos: f.blocos.map((r) => ({ id: r.id, titulo: r.titulo, conteudo: r.conteudo })),
+      funcionalidades: f.funcionalidades.map((r) => ({
         id: r.id,
         titulo: r.titulo,
         descricao: r.descricao,
-        imagem_url: r.imagem_url,
+        imagem_url: r.imagemUrl,
       })),
-      casos_teste: (casosTesteRes.data ?? []).map((r) => ({
+      casos_teste: f.casosTeste.map((r) => ({
         id: r.id,
         titulo: r.titulo,
         badge: r.badge,
-        prompt_exemplo: r.prompt_exemplo,
+        prompt_exemplo: r.promptExemplo,
         explicacao: r.explicacao,
       })),
-      ambiente_slug: amb.slug,
-      ambiente_nome: amb.nome,
+      ambiente_slug: f.ambienteSlug,
+      ambiente_nome: f.ambienteNome,
     };
   });
